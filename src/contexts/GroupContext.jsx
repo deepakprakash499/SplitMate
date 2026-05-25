@@ -6,17 +6,17 @@ const MAX_GUESTS_PER_GROUP = 12
 const GroupContext = createContext(null)
 
 export function GroupProvider({ children }) {
-  const [groups,       setGroups]       = useState([])
+  const [groups, setGroups] = useState([])
   const [groupMembers, setGroupMembers] = useState({})
   const [guestMembers, setGuestMembers] = useState({})
-  const [expenses,     setExpenses]     = useState([])
-  const [splits,       setSplits]       = useState({})
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState(null)
+  const [expenses, setExpenses] = useState([])
+  const [splits, setSplits] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   // Unified real + guest list for a group
   const allMembers = useCallback((groupId) => {
-    const real  = (groupMembers[groupId] || []).map(m => ({ ...m, isGuest: false }))
+    const real = (groupMembers[groupId] || []).map(m => ({ ...m, isGuest: false }))
     const guest = (guestMembers[groupId] || []).map(g => ({
       id: g.id, full_name: g.name, isGuest: true
     }))
@@ -95,7 +95,7 @@ export function GroupProvider({ children }) {
     const { data: profiles } = await supabase
       .from('profiles').select('id, email, full_name').eq('email', email.toLowerCase().trim())
     if (!profiles?.length) throw new Error(`No user found with email: ${email}`)
-    const profile  = profiles[0]
+    const profile = profiles[0]
     const existing = groupMembers[groupId] || []
     if (existing.some(m => m.id === profile.id))
       throw new Error(`${profile.full_name} is already in this group.`)
@@ -189,13 +189,30 @@ export function GroupProvider({ children }) {
   function buildSplitInserts(expenseId, members, amount, splitType, splitValues, paidBy) {
     return members.map(member => {
       let splitAmount = 0
-      if (splitType === 'equal')      splitAmount = parseFloat((amount / members.length).toFixed(2))
+      if (splitType === 'equal') splitAmount = parseFloat((amount / members.length).toFixed(2))
       else if (splitType === 'percentage') splitAmount = parseFloat((amount * (splitValues[member.id] || 0) / 100).toFixed(2))
-      else                            splitAmount = parseFloat(splitValues[member.id] || 0)
+      else splitAmount = parseFloat(splitValues[member.id] || 0)
+
+      // Check if paidBy is a guest ID
+      const paidByIsGuest = allMembers(groupId)?.find(m => m.id === paidBy && m.isGuest)
 
       return member.isGuest
-        ? { expense_id: expenseId, user_id: null, guest_member_id: member.id, amount: splitAmount, is_settled: false }
-        : { expense_id: expenseId, user_id: member.id, guest_member_id: null, amount: splitAmount, is_settled: member.id === paidBy }
+        ? {
+          expense_id: expenseId,
+          user_id: null,
+          guest_member_id: member.id,
+          amount: splitAmount,
+          // Auto-settle if this guest is the payer
+          is_settled: member.id === paidBy
+        }
+        : {
+          expense_id: expenseId,
+          user_id: member.id,
+          guest_member_id: null,
+          amount: splitAmount,
+          // Real member auto-settles only if they paid AND paidBy is a real member
+          is_settled: !paidByIsGuest && member.id === paidBy
+        }
     })
   }
 
@@ -283,7 +300,17 @@ export function GroupProvider({ children }) {
     setError(null)
     const groupExpenses = expenses.filter(e => e.group_id === groupId)
     for (const expense of groupExpenses) {
-      const toSettle = (splits[expense.id] || []).filter(s => s.guest_member_id === guestMemberId && !s.is_settled)
+      const expSplits = splits[expense.id] || []
+
+      // Case 1: Guest owes — guest_member_id matches (guest was a recipient of split)
+      const guestOwes = expSplits.filter(s => s.guest_member_id === guestMemberId && !s.is_settled)
+
+      // Case 2: Guest paid — paid_by matches guest, settle all real member splits
+      const guestPaid = expense.paid_by === guestMemberId
+        ? expSplits.filter(s => s.user_id !== null && !s.is_settled)
+        : []
+
+      const toSettle = [...guestOwes, ...guestPaid]
       for (const s of toSettle) {
         await supabase.from('expense_splits')
           .update({ is_settled: true, settled_at: new Date().toISOString() }).eq('id', s.id)
@@ -296,8 +323,8 @@ export function GroupProvider({ children }) {
 
   const calculateBalances = useCallback((groupId, currentUserId) => {
     const realMembers = groupMembers[groupId] || []
-    const guests      = guestMembers[groupId] || []
-    const balanceMap  = {}
+    const guests = guestMembers[groupId] || []
+    const balanceMap = {}
 
     for (const m of realMembers) {
       if (m.id !== currentUserId)
