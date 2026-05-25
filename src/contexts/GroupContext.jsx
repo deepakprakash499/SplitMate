@@ -187,32 +187,32 @@ export function GroupProvider({ children }) {
   }, [])
 
   function buildSplitInserts(expenseId, members, amount, splitType, splitValues, paidBy) {
+    // Determine if the payer is a guest by checking if any member with that ID is a guest
+    const paidByIsGuest = members.some(m => m.id === paidBy && m.isGuest)
+
     return members.map(member => {
       let splitAmount = 0
       if (splitType === 'equal') splitAmount = parseFloat((amount / members.length).toFixed(2))
       else if (splitType === 'percentage') splitAmount = parseFloat((amount * (splitValues[member.id] || 0) / 100).toFixed(2))
       else splitAmount = parseFloat(splitValues[member.id] || 0)
 
-      // Check if paidBy is a guest ID
-      const paidByIsGuest = allMembers(groupId)?.find(m => m.id === paidBy && m.isGuest)
-
-      return member.isGuest
-        ? {
+      if (member.isGuest) {
+        return {
           expense_id: expenseId,
           user_id: null,
           guest_member_id: member.id,
           amount: splitAmount,
-          // Auto-settle if this guest is the payer
           is_settled: member.id === paidBy
         }
-        : {
+      } else {
+        return {
           expense_id: expenseId,
           user_id: member.id,
           guest_member_id: null,
           amount: splitAmount,
-          // Real member auto-settles only if they paid AND paidBy is a real member
           is_settled: !paidByIsGuest && member.id === paidBy
         }
+      }
     })
   }
 
