@@ -23,6 +23,11 @@ function AppRoutes() {
 
   if (!user) return <Auth />
 
+  // Always land on groups after fresh auth
+  if (window.location.pathname === '/profile') {
+    return <Navigate to="/groups" replace />
+  }
+
   return (
     <GroupProvider>
       <div

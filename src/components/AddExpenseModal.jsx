@@ -4,33 +4,33 @@ import { useGroups } from '../contexts/GroupContext'
 import { CURRENCIES, formatAmount } from '../utils/currency'
 
 const SPLIT_TYPES = [
-  { value: 'equal',      label: 'Equally', icon: '⚖️' },
-  { value: 'percentage', label: 'Percent', icon: '%'  },
-  { value: 'exact',      label: 'Amounts', icon: '#'  },
+  { value: 'equal', label: 'Equally', icon: '⚖️' },
+  { value: 'percentage', label: 'Percent', icon: '%' },
+  { value: 'exact', label: 'Amounts', icon: '#' },
 ]
 
 export default function AddExpenseModal({ group, onClose }) {
-  const { profile }  = useAuth()
+  const { profile } = useAuth()
   const { addExpense, allMembers } = useGroups()
 
   const members = allMembers(group.id)
 
   const [description, setDescription] = useState('')
-  const [amountStr,   setAmountStr]   = useState('')
-  const [currency,    setCurrency]    = useState(group.currency || 'EUR')
-  const [paidBy,      setPaidBy]      = useState(profile?.id || '')
-  const [splitType,   setSplitType]   = useState('equal')
-  const [selected,    setSelected]    = useState(() => new Set(members.map(m => m.id)))
-  const [pctValues,   setPctValues]   = useState({})
+  const [amountStr, setAmountStr] = useState('')
+  const [currency, setCurrency] = useState(group.currency || 'EUR')
+  const [paidBy, setPaidBy] = useState(profile?.id || '')
+  const [splitType, setSplitType] = useState('equal')
+  const [selected, setSelected] = useState(() => new Set(members.map(m => m.id)))
+  const [pctValues, setPctValues] = useState({})
   const [exactValues, setExactValues] = useState({})
-  const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const amount          = parseFloat(amountStr.replace(',', '.')) || 0
+  const amount = parseFloat(amountStr.replace(',', '.')) || 0
   const selectedMembers = members.filter(m => selected.has(m.id))
-  const realMembers     = members.filter(m => !m.isGuest)
-  const pctTotal        = selectedMembers.reduce((s, m) => s + (parseFloat(pctValues[m.id]) || 0), 0)
-  const exactTotal      = selectedMembers.reduce((s, m) => s + (parseFloat(exactValues[m.id]?.replace(',', '.')) || 0), 0)
+  const realMembers = members.filter
+  const pctTotal = selectedMembers.reduce((s, m) => s + (parseFloat(pctValues[m.id]) || 0), 0)
+  const exactTotal = selectedMembers.reduce((s, m) => s + (parseFloat(exactValues[m.id]?.replace(',', '.')) || 0), 0)
 
   const validationError = (() => {
     if (!description.trim() || amount <= 0) return null
@@ -138,10 +138,9 @@ export default function AddExpenseModal({ group, onClose }) {
               <div className="grid grid-cols-3 gap-2">
                 {SPLIT_TYPES.map(st => (
                   <button key={st.value} type="button" onClick={() => setSplitType(st.value)}
-                    className={`py-3 rounded-xl text-sm font-semibold flex flex-col items-center gap-1 transition-all border ${
-                      splitType === st.value
-                        ? 'bg-white text-black border-white'
-                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
+                    className={`py-3 rounded-xl text-sm font-semibold flex flex-col items-center gap-1 transition-all border ${splitType === st.value
+                      ? 'bg-white text-black border-white'
+                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
                     <span className="text-lg">{st.icon}</span>{st.label}
                   </button>
                 ))}
@@ -166,13 +165,12 @@ export default function AddExpenseModal({ group, onClose }) {
               <div className="bg-zinc-800 border border-zinc-700 rounded-2xl overflow-hidden divide-y divide-zinc-700">
                 {members.map(member => {
                   const isSelected = selected.has(member.id)
-                  const isMe       = member.id === profile?.id
+                  const isMe = member.id === profile?.id
 
                   return (
                     <div key={member.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${!isSelected ? 'opacity-40' : ''}`}>
                       <button type="button" onClick={() => toggleMember(member.id)}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                          isSelected ? 'bg-white border-white' : 'border-zinc-600'}`}>
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected ? 'bg-white border-white' : 'border-zinc-600'}`}>
                         {isSelected && (
                           <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
