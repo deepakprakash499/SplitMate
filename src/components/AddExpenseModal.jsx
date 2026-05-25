@@ -4,32 +4,36 @@ import { useGroups } from '../contexts/GroupContext'
 import { CURRENCIES, formatAmount } from '../utils/currency'
 
 const SPLIT_TYPES = [
-  { value: 'equal', label: 'Equally', icon: '⚖️' },
-  { value: 'percentage', label: 'Percent', icon: '%' },
-  { value: 'exact', label: 'Amounts', icon: '#' },
+  { value: 'equal',      label: 'Equally', icon: '⚖️' },
+  { value: 'percentage', label: 'Percent', icon: '%'  },
+  { value: 'exact',      label: 'Amounts', icon: '#'  },
 ]
 
 export default function AddExpenseModal({ group, onClose }) {
-  const { profile } = useAuth()
+  const { profile }  = useAuth()
   const { addExpense, allMembers } = useGroups()
 
   const members = allMembers(group.id)
 
   const [description, setDescription] = useState('')
-  const [amountStr, setAmountStr] = useState('')
-  const [currency, setCurrency] = useState(group.currency || 'EUR')
-  const [paidBy, setPaidBy] = useState(profile?.id || '')
-  const [splitType, setSplitType] = useState('equal')
-  const [selected, setSelected] = useState(() => new Set(members.map(m => m.id)))
-  const [pctValues, setPctValues] = useState({})
+  const [amountStr,   setAmountStr]   = useState('')
+  const [currency,    setCurrency]    = useState(group.currency || 'EUR')
+  const [paidBy,      setPaidBy]      = useState(profile?.id || '')
+  const [splitType,   setSplitType]   = useState('equal')
+  const [selected,    setSelected]    = useState(() => new Set(members.map(m => m.id)))
+  const [pctValues,   setPctValues]   = useState({})
   const [exactValues, setExactValues] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
 
-  const amount = parseFloat(amountStr.replace(',', '.')) || 0
+  const amount          = parseFloat(amountStr.replace(',', '.')) || 0
   const selectedMembers = members.filter(m => selected.has(m.id))
-  const realMembers = members.filter
-  const pctTotal = selectedMembers.reduce((s, m) => s + (parseFloat(pctValues[m.id]) || 0), 0)
+
+  // All members (real + guest) can appear in Paid By
+  // guests are labelled clearly so there's no confusion
+  const paidByOptions = members
+
+  const pctTotal   = selectedMembers.reduce((s, m) => s + (parseFloat(pctValues[m.id]) || 0), 0)
   const exactTotal = selectedMembers.reduce((s, m) => s + (parseFloat(exactValues[m.id]?.replace(',', '.')) || 0), 0)
 
   const validationError = (() => {
@@ -119,14 +123,16 @@ export default function AddExpenseModal({ group, onClose }) {
                 required />
             </div>
 
-            {/* Paid by */}
+            {/* Paid by — all members including guests */}
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-1.5">Paid by</label>
               <select value={paidBy} onChange={e => setPaidBy(e.target.value)}
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-xl text-sm focus:outline-none focus:border-zinc-500 appearance-none">
-                {realMembers.map(m => (
+                {paidByOptions.map(m => (
                   <option key={m.id} value={m.id}>
-                    {m.id === profile?.id ? `You (${m.full_name})` : m.full_name}
+                    {m.isGuest
+                      ? `${m.full_name} (Guest)`
+                      : m.id === profile?.id ? `You (${m.full_name})` : m.full_name}
                   </option>
                 ))}
               </select>
@@ -138,9 +144,10 @@ export default function AddExpenseModal({ group, onClose }) {
               <div className="grid grid-cols-3 gap-2">
                 {SPLIT_TYPES.map(st => (
                   <button key={st.value} type="button" onClick={() => setSplitType(st.value)}
-                    className={`py-3 rounded-xl text-sm font-semibold flex flex-col items-center gap-1 transition-all border ${splitType === st.value
-                      ? 'bg-white text-black border-white'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
+                    className={`py-3 rounded-xl text-sm font-semibold flex flex-col items-center gap-1 transition-all border ${
+                      splitType === st.value
+                        ? 'bg-white text-black border-white'
+                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
                     <span className="text-lg">{st.icon}</span>{st.label}
                   </button>
                 ))}
@@ -165,19 +172,19 @@ export default function AddExpenseModal({ group, onClose }) {
               <div className="bg-zinc-800 border border-zinc-700 rounded-2xl overflow-hidden divide-y divide-zinc-700">
                 {members.map(member => {
                   const isSelected = selected.has(member.id)
-                  const isMe = member.id === profile?.id
-
+                  const isMe       = member.id === profile?.id
                   return (
-                    <div key={member.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${!isSelected ? 'opacity-40' : ''}`}>
+                    <div key={member.id}
+                      className={`flex items-center gap-3 px-4 py-3 transition-opacity ${!isSelected ? 'opacity-40' : ''}`}>
                       <button type="button" onClick={() => toggleMember(member.id)}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected ? 'bg-white border-white' : 'border-zinc-600'}`}>
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          isSelected ? 'bg-white border-white' : 'border-zinc-600'}`}>
                         {isSelected && (
                           <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
                       </button>
-
                       <div className="flex-1 flex items-center gap-2 min-w-0">
                         <span className="text-sm font-medium text-white truncate">
                           {isMe ? 'You' : member.full_name}
@@ -186,7 +193,6 @@ export default function AddExpenseModal({ group, onClose }) {
                           <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded-full flex-shrink-0">Guest</span>
                         )}
                       </div>
-
                       {isSelected && (
                         <>
                           {splitType === 'equal' && amount > 0 && (
