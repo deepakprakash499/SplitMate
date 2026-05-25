@@ -2,15 +2,12 @@ import { NavLink } from 'react-router-dom'
 
 export default function BottomNav() {
   const base = 'flex flex-col items-center gap-1 text-xs font-medium transition-colors pt-2'
-  const active = 'text-green-600'
-  const inactive = 'text-gray-400'
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
-    >
-      <NavLink to="/groups" className={({ isActive }) => `flex-1 ${base} ${isActive ? active : inactive}`}>
+    <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-zinc-800 flex"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+      <NavLink to="/groups" className={({ isActive }) =>
+        `flex-1 ${base} ${isActive ? 'text-white' : 'text-zinc-600'}`}>
         {({ isActive }) => (
           <>
             <svg className="w-6 h-6" fill={isActive ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isActive ? 0 : 1.8} viewBox="0 0 24 24">
@@ -21,7 +18,8 @@ export default function BottomNav() {
         )}
       </NavLink>
 
-      <NavLink to="/profile" className={({ isActive }) => `flex-1 ${base} ${isActive ? active : inactive}`}>
+      <NavLink to="/profile" className={({ isActive }) =>
+        `flex-1 ${base} ${isActive ? 'text-white' : 'text-zinc-600'}`}>
         {({ isActive }) => (
           <>
             <svg className="w-6 h-6" fill={isActive ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isActive ? 0 : 1.8} viewBox="0 0 24 24">

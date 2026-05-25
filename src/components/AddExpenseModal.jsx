@@ -13,7 +13,7 @@ export default function AddExpenseModal({ group, onClose }) {
   const { profile }  = useAuth()
   const { addExpense, allMembers } = useGroups()
 
-  const members = allMembers(group.id)   // unified real + guest list
+  const members = allMembers(group.id)
 
   const [description, setDescription] = useState('')
   const [amountStr,   setAmountStr]   = useState('')
@@ -28,7 +28,7 @@ export default function AddExpenseModal({ group, onClose }) {
 
   const amount          = parseFloat(amountStr.replace(',', '.')) || 0
   const selectedMembers = members.filter(m => selected.has(m.id))
-  const realSelected    = selectedMembers.filter(m => !m.isGuest)
+  const realMembers     = members.filter(m => !m.isGuest)
   const pctTotal        = selectedMembers.reduce((s, m) => s + (parseFloat(pctValues[m.id]) || 0), 0)
   const exactTotal      = selectedMembers.reduce((s, m) => s + (parseFloat(exactValues[m.id]?.replace(',', '.')) || 0), 0)
 
@@ -55,49 +55,37 @@ export default function AddExpenseModal({ group, onClose }) {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!isValid) return
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
 
     const splitValues = {}
     for (const m of selectedMembers) {
       if (splitType === 'percentage') splitValues[m.id] = parseFloat(pctValues[m.id]) || 0
-      else if (splitType === 'exact')  splitValues[m.id] = parseFloat(exactValues[m.id]?.replace(',', '.')) || 0
+      else if (splitType === 'exact') splitValues[m.id] = parseFloat(exactValues[m.id]?.replace(',', '.')) || 0
     }
 
     try {
       await addExpense({
-        groupId:    group.id,
-        description: description.trim(),
-        amount,
-        currency,
-        paidBy,
-        splitType,
-        members:    selectedMembers,
-        splitValues,
-        createdBy:  profile.id,
+        groupId: group.id, description: description.trim(),
+        amount, currency, paidBy, splitType,
+        members: selectedMembers, splitValues, createdBy: profile.id,
       })
       onClose()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err.message) }
+    finally { setLoading(false) }
   }
 
-  // Only real members can be "paid by"
-  const realMembers = members.filter(m => !m.isGuest)
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="bg-white w-full max-w-lg rounded-t-3xl overflow-y-auto" style={{ maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.85)' }}>
+      <div className="bg-zinc-900 border border-zinc-800 w-full max-w-lg rounded-t-3xl overflow-y-auto"
+        style={{ maxHeight: '92vh', paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}>
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+          <div className="w-10 h-1 bg-zinc-700 rounded-full" />
         </div>
 
         <div className="px-6 pb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Add Expense</h2>
-            <button onClick={onClose} className="text-gray-400 p-1">
+            <h2 className="text-xl font-bold text-white">Add Expense</h2>
+            <button onClick={onClose} className="text-zinc-500 p-1">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -106,38 +94,36 @@ export default function AddExpenseModal({ group, onClose }) {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Amount */}
-            <div className="bg-gray-50 rounded-2xl p-5 text-center">
+            <div className="bg-zinc-800 border border-zinc-700 rounded-2xl p-5 text-center">
               <div className="flex items-baseline justify-center gap-2 mb-3">
-                <span className="text-2xl text-gray-400 font-medium">
+                <span className="text-2xl text-zinc-500 font-medium">
                   {CURRENCIES.find(c => c.code === currency)?.symbol}
                 </span>
-                <input
-                  type="number" inputMode="decimal"
-                  value={amountStr} onChange={e => setAmountStr(e.target.value)}
-                  placeholder="0.00"
-                  className="text-5xl font-bold bg-transparent text-center w-40 focus:outline-none placeholder-gray-200"
-                  step="0.01" min="0"
-                />
+                <input type="number" inputMode="decimal" value={amountStr}
+                  onChange={e => setAmountStr(e.target.value)} placeholder="0.00"
+                  className="text-5xl font-bold bg-transparent text-white text-center w-40 focus:outline-none placeholder-zinc-700"
+                  step="0.01" min="0" />
               </div>
               <select value={currency} onChange={e => setCurrency(e.target.value)}
-                className="text-sm font-semibold text-green-600 bg-green-50 px-3 py-1.5 rounded-full focus:outline-none">
+                className="text-sm font-semibold text-zinc-300 bg-zinc-700 border border-zinc-600 px-3 py-1.5 rounded-full focus:outline-none">
                 {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
               </select>
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Description *</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Description *</label>
               <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                 placeholder="e.g. Dinner, Rent, Taxi…"
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" required />
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 rounded-xl text-sm focus:outline-none focus:border-zinc-500"
+                required />
             </div>
 
-            {/* Paid by — real members only */}
+            {/* Paid by */}
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Paid by</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Paid by</label>
               <select value={paidBy} onChange={e => setPaidBy(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400 appearance-none">
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-xl text-sm focus:outline-none focus:border-zinc-500 appearance-none">
                 {realMembers.map(m => (
                   <option key={m.id} value={m.id}>
                     {m.id === profile?.id ? `You (${m.full_name})` : m.full_name}
@@ -148,56 +134,65 @@ export default function AddExpenseModal({ group, onClose }) {
 
             {/* Split type */}
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-2">How to split</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">How to split</label>
               <div className="grid grid-cols-3 gap-2">
                 {SPLIT_TYPES.map(st => (
                   <button key={st.value} type="button" onClick={() => setSplitType(st.value)}
-                    className={`py-3 rounded-xl text-sm font-semibold flex flex-col items-center gap-1 transition-all ${
-                      splitType === st.value ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    className={`py-3 rounded-xl text-sm font-semibold flex flex-col items-center gap-1 transition-all border ${
+                      splitType === st.value
+                        ? 'bg-white text-black border-white'
+                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
                     <span className="text-lg">{st.icon}</span>{st.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Members — real + guest */}
+            {/* Members — include/exclude */}
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-2">
-                Split between
-                <span className="font-normal text-gray-400 ml-1">({members.length} member{members.length !== 1 ? 's' : ''})</span>
-              </label>
-              <div className="bg-gray-50 rounded-2xl overflow-hidden divide-y divide-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-zinc-400">
+                  Split between
+                  <span className="text-zinc-600 font-normal ml-1">
+                    ({selectedMembers.length} of {members.length} included)
+                  </span>
+                </label>
+                {selectedMembers.length < members.length && (
+                  <button type="button"
+                    onClick={() => setSelected(new Set(members.map(m => m.id)))}
+                    className="text-xs text-zinc-400 underline">Include all</button>
+                )}
+              </div>
+              <div className="bg-zinc-800 border border-zinc-700 rounded-2xl overflow-hidden divide-y divide-zinc-700">
                 {members.map(member => {
                   const isSelected = selected.has(member.id)
                   const isMe       = member.id === profile?.id
 
                   return (
-                    <div key={member.id} className="flex items-center gap-3 px-4 py-3">
+                    <div key={member.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${!isSelected ? 'opacity-40' : ''}`}>
                       <button type="button" onClick={() => toggleMember(member.id)}
                         className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                          isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          isSelected ? 'bg-white border-white' : 'border-zinc-600'}`}>
                         {isSelected && (
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
                       </button>
 
                       <div className="flex-1 flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium truncate">
+                        <span className="text-sm font-medium text-white truncate">
                           {isMe ? 'You' : member.full_name}
                         </span>
                         {member.isGuest && (
-                          <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                            Guest
-                          </span>
+                          <span className="text-xs bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded-full flex-shrink-0">Guest</span>
                         )}
                       </div>
 
                       {isSelected && (
                         <>
                           {splitType === 'equal' && amount > 0 && (
-                            <span className="text-sm font-semibold text-gray-500">
+                            <span className="text-sm font-semibold text-zinc-400">
                               {formatAmount(amount / selectedMembers.length, currency)}
                             </span>
                           )}
@@ -207,18 +202,18 @@ export default function AddExpenseModal({ group, onClose }) {
                                 value={pctValues[member.id] || ''}
                                 onChange={e => setPctValues(p => ({ ...p, [member.id]: e.target.value }))}
                                 placeholder="0"
-                                className="w-14 px-2 py-1 bg-white border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-green-400" />
-                              <span className="text-gray-400 text-sm">%</span>
+                                className="w-14 px-2 py-1 bg-zinc-700 border border-zinc-600 text-white rounded-lg text-sm text-right focus:outline-none" />
+                              <span className="text-zinc-500 text-sm">%</span>
                             </div>
                           )}
                           {splitType === 'exact' && (
                             <div className="flex items-center gap-1">
-                              <span className="text-gray-400 text-sm">{CURRENCIES.find(c => c.code === currency)?.symbol}</span>
+                              <span className="text-zinc-500 text-sm">{CURRENCIES.find(c => c.code === currency)?.symbol}</span>
                               <input type="number" inputMode="decimal"
                                 value={exactValues[member.id] || ''}
                                 onChange={e => setExactValues(p => ({ ...p, [member.id]: e.target.value }))}
                                 placeholder="0.00"
-                                className="w-20 px-2 py-1 bg-white border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                                className="w-20 px-2 py-1 bg-zinc-700 border border-zinc-600 text-white rounded-lg text-sm text-right focus:outline-none"
                                 step="0.01" />
                             </div>
                           )}
@@ -231,14 +226,14 @@ export default function AddExpenseModal({ group, onClose }) {
             </div>
 
             {validationError && (
-              <div className="text-orange-600 text-sm bg-orange-50 px-4 py-3 rounded-xl">⚠️ {validationError}</div>
+              <div className="text-yellow-400 text-sm bg-yellow-950 border border-yellow-900 px-4 py-3 rounded-xl">⚠️ {validationError}</div>
             )}
             {error && (
-              <div className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{error}</div>
+              <div className="text-red-400 text-sm bg-red-950 border border-red-900 px-4 py-3 rounded-xl">{error}</div>
             )}
 
             <button type="submit" disabled={!isValid || loading}
-              className="w-full py-4 rounded-xl font-semibold text-white bg-green-500 active:bg-green-600 disabled:opacity-40 transition-all">
+              className="w-full py-4 rounded-xl font-semibold text-black bg-white active:bg-zinc-200 disabled:opacity-30">
               {loading ? 'Saving…' : 'Add Expense'}
             </button>
           </form>

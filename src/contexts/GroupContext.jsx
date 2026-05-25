@@ -2,25 +2,23 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
+const MAX_GUESTS_PER_GROUP = 12
 const GroupContext = createContext(null)
 
 export function GroupProvider({ children }) {
   const [groups,       setGroups]       = useState([])
-  const [groupMembers, setGroupMembers] = useState({})   // { groupId: [Profile] }
-  const [guestMembers, setGuestMembers] = useState({})   // { groupId: [GuestMember] }
+  const [groupMembers, setGroupMembers] = useState({})
+  const [guestMembers, setGuestMembers] = useState({})
   const [expenses,     setExpenses]     = useState([])
-  const [splits,       setSplits]       = useState({})   // { expenseId: [Split] }
+  const [splits,       setSplits]       = useState({})
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState(null)
 
-  // ─── Unified member list (real + guest) ───────────────────
-  // Returns [ { id, full_name, email?, isGuest } ]
+  // Unified real + guest list for a group
   const allMembers = useCallback((groupId) => {
     const real  = (groupMembers[groupId] || []).map(m => ({ ...m, isGuest: false }))
     const guest = (guestMembers[groupId] || []).map(g => ({
-      id:        g.id,
-      full_name: g.name,
-      isGuest:   true
+      id: g.id, full_name: g.name, isGuest: true
     }))
     return [...real, ...guest]
   }, [groupMembers, guestMembers])
@@ -32,22 +30,14 @@ export function GroupProvider({ children }) {
     setError(null)
     try {
       const { data: memberRows, error: mErr } = await supabase
-        .from('group_members')
-        .select('group_id')
-        .eq('user_id', userId)
+        .from('group_members').select('group_id').eq('user_id', userId)
       if (mErr) throw mErr
 
       const groupIds = (memberRows || []).map(r => r.group_id)
-      if (!groupIds.length) {
-        setGroups([])
-        setLoading(false)
-        return
-      }
+      if (!groupIds.length) { setGroups([]); setLoading(false); return }
 
       const { data, error: gErr } = await supabase
-        .from('expense_groups')
-        .select('*')
-        .in('id', groupIds)
+        .from('expense_groups').select('*').in('id', groupIds)
         .order('created_at', { ascending: false })
       if (gErr) throw gErr
 
@@ -56,11 +46,8 @@ export function GroupProvider({ children }) {
         fetchMembers(g.id)
         fetchGuestMembers(g.id)
       }
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }, [])
 
   const createGroup = useCallback(async (name, description, currency, createdBy) => {
@@ -68,13 +55,11 @@ export function GroupProvider({ children }) {
     const { data, error: gErr } = await supabase
       .from('expense_groups')
       .insert({ name, description: description || null, currency, created_by: createdBy })
-      .select()
-      .single()
+      .select().single()
     if (gErr) throw gErr
 
     const { error: mErr } = await supabase
-      .from('group_members')
-      .insert({ group_id: data.id, user_id: createdBy })
+      .from('group_members').insert({ group_id: data.id, user_id: createdBy })
     if (mErr) throw mErr
 
     setGroups(prev => [data, ...prev])
@@ -84,10 +69,7 @@ export function GroupProvider({ children }) {
   }, [])
 
   const deleteGroup = useCallback(async (groupId) => {
-    const { error } = await supabase
-      .from('expense_groups')
-      .delete()
-      .eq('id', groupId)
+    const { error } = await supabase.from('expense_groups').delete().eq('id', groupId)
     if (error) throw error
     setGroups(prev => prev.filter(g => g.id !== groupId))
     setGroupMembers(prev => { const n = { ...prev }; delete n[groupId]; return n })
@@ -100,59 +82,36 @@ export function GroupProvider({ children }) {
   const fetchMembers = useCallback(async (groupId) => {
     try {
       const { data: rows } = await supabase
-        .from('group_members')
-        .select('user_id')
-        .eq('group_id', groupId)
-
+        .from('group_members').select('user_id').eq('group_id', groupId)
       const userIds = (rows || []).map(r => r.user_id)
-      if (!userIds.length) {
-        setGroupMembers(prev => ({ ...prev, [groupId]: [] }))
-        return
-      }
+      if (!userIds.length) { setGroupMembers(prev => ({ ...prev, [groupId]: [] })); return }
       const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, email, full_name')
-        .in('id', userIds)
+        .from('profiles').select('id, email, full_name').in('id', userIds)
       setGroupMembers(prev => ({ ...prev, [groupId]: profiles || [] }))
-    } catch (e) {
-      setError(e.message)
-    }
+    } catch (e) { setError(e.message) }
   }, [])
 
   const addMember = useCallback(async (groupId, email) => {
     const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .eq('email', email.toLowerCase().trim())
+      .from('profiles').select('id, email, full_name').eq('email', email.toLowerCase().trim())
     if (!profiles?.length) throw new Error(`No user found with email: ${email}`)
-
     const profile  = profiles[0]
     const existing = groupMembers[groupId] || []
-    if (existing.some(m => m.id === profile.id)) {
+    if (existing.some(m => m.id === profile.id))
       throw new Error(`${profile.full_name} is already in this group.`)
-    }
     const { error } = await supabase
-      .from('group_members')
-      .insert({ group_id: groupId, user_id: profile.id })
+      .from('group_members').insert({ group_id: groupId, user_id: profile.id })
     if (error) throw error
-
-    setGroupMembers(prev => ({
-      ...prev,
-      [groupId]: [...(prev[groupId] || []), profile]
-    }))
+    setGroupMembers(prev => ({ ...prev, [groupId]: [...(prev[groupId] || []), profile] }))
     return profile
   }, [groupMembers])
 
   const removeMember = useCallback(async (groupId, userId) => {
     const { error } = await supabase
-      .from('group_members')
-      .delete()
-      .eq('group_id', groupId)
-      .eq('user_id', userId)
+      .from('group_members').delete().eq('group_id', groupId).eq('user_id', userId)
     if (error) throw error
     setGroupMembers(prev => ({
-      ...prev,
-      [groupId]: (prev[groupId] || []).filter(m => m.id !== userId)
+      ...prev, [groupId]: (prev[groupId] || []).filter(m => m.id !== userId)
     }))
   }, [])
 
@@ -161,39 +120,54 @@ export function GroupProvider({ children }) {
   const fetchGuestMembers = useCallback(async (groupId) => {
     try {
       const { data } = await supabase
-        .from('guest_members')
-        .select('*')
-        .eq('group_id', groupId)
+        .from('guest_members').select('*').eq('group_id', groupId)
         .order('created_at', { ascending: true })
       setGuestMembers(prev => ({ ...prev, [groupId]: data || [] }))
-    } catch (e) {
-      setError(e.message)
-    }
+    } catch (e) { setError(e.message) }
+  }, [])
+
+  // Fetch recent guests created by current user across ALL groups (for quick-select)
+  const fetchRecentGuests = useCallback(async (createdBy, excludeGroupId = null) => {
+    try {
+      let query = supabase
+        .from('guest_members').select('id, name, group_id')
+        .eq('created_by', createdBy)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const { data } = await query
+      if (!data) return []
+
+      // Deduplicate by name (case-insensitive), keep most recent
+      const seen = new Set()
+      return data.filter(g => {
+        const key = g.name.toLowerCase().trim()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }).slice(0, 8)
+    } catch (e) { return [] }
   }, [])
 
   const addGuestMember = useCallback(async (groupId, name, createdBy) => {
+    // Enforce max 12 guests per group
+    const existing = guestMembers[groupId] || []
+    if (existing.length >= MAX_GUESTS_PER_GROUP)
+      throw new Error(`Maximum ${MAX_GUESTS_PER_GROUP} guest members allowed per group.`)
+
     const { data, error } = await supabase
       .from('guest_members')
       .insert({ group_id: groupId, name: name.trim(), created_by: createdBy })
-      .select()
-      .single()
+      .select().single()
     if (error) throw error
-    setGuestMembers(prev => ({
-      ...prev,
-      [groupId]: [...(prev[groupId] || []), data]
-    }))
+    setGuestMembers(prev => ({ ...prev, [groupId]: [...(prev[groupId] || []), data] }))
     return data
-  }, [])
+  }, [guestMembers])
 
   const removeGuestMember = useCallback(async (groupId, guestId) => {
-    const { error } = await supabase
-      .from('guest_members')
-      .delete()
-      .eq('id', guestId)
+    const { error } = await supabase.from('guest_members').delete().eq('id', guestId)
     if (error) throw error
     setGuestMembers(prev => ({
-      ...prev,
-      [groupId]: (prev[groupId] || []).filter(g => g.id !== guestId)
+      ...prev, [groupId]: (prev[groupId] || []).filter(g => g.id !== guestId)
     }))
   }, [])
 
@@ -203,51 +177,25 @@ export function GroupProvider({ children }) {
     setLoading(true)
     try {
       const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('group_id', groupId)
+        .from('expenses').select('*').eq('group_id', groupId)
         .order('created_at', { ascending: false })
       if (error) throw error
       setExpenses(data || [])
       await Promise.all((data || []).map(e => fetchSplits(e.id)))
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }, [])
 
-  // Build split inserts for both real and guest members
   function buildSplitInserts(expenseId, members, amount, splitType, splitValues, paidBy) {
     return members.map(member => {
       let splitAmount = 0
-      if (splitType === 'equal') {
-        splitAmount = parseFloat((amount / members.length).toFixed(2))
-      } else if (splitType === 'percentage') {
-        splitAmount = parseFloat((amount * (splitValues[member.id] || 0) / 100).toFixed(2))
-      } else {
-        splitAmount = parseFloat(splitValues[member.id] || 0)
-      }
+      if (splitType === 'equal')      splitAmount = parseFloat((amount / members.length).toFixed(2))
+      else if (splitType === 'percentage') splitAmount = parseFloat((amount * (splitValues[member.id] || 0) / 100).toFixed(2))
+      else                            splitAmount = parseFloat(splitValues[member.id] || 0)
 
-      if (member.isGuest) {
-        // Guest: never auto-settled, no user_id
-        return {
-          expense_id:      expenseId,
-          user_id:         null,
-          guest_member_id: member.id,
-          amount:          splitAmount,
-          is_settled:      false
-        }
-      } else {
-        // Real member: auto-settle if they paid
-        return {
-          expense_id:      expenseId,
-          user_id:         member.id,
-          guest_member_id: null,
-          amount:          splitAmount,
-          is_settled:      member.id === paidBy
-        }
-      }
+      return member.isGuest
+        ? { expense_id: expenseId, user_id: null, guest_member_id: member.id, amount: splitAmount, is_settled: false }
+        : { expense_id: expenseId, user_id: member.id, guest_member_id: null, amount: splitAmount, is_settled: member.id === paidBy }
     })
   }
 
@@ -258,17 +206,8 @@ export function GroupProvider({ children }) {
     setError(null)
     const { data: expense, error: eErr } = await supabase
       .from('expenses')
-      .insert({
-        group_id:   groupId,
-        description,
-        amount,
-        currency,
-        paid_by:    paidBy,
-        split_type: splitType,
-        created_by: createdBy
-      })
-      .select()
-      .single()
+      .insert({ group_id: groupId, description, amount, currency, paid_by: paidBy, split_type: splitType, created_by: createdBy })
+      .select().single()
     if (eErr) throw eErr
 
     const splitInserts = buildSplitInserts(expense.id, members, amount, splitType, splitValues, paidBy)
@@ -281,28 +220,18 @@ export function GroupProvider({ children }) {
   }, [])
 
   const editExpense = useCallback(async ({
-    expenseId, description, amount, currency,
-    paidBy, splitType, members, splitValues
+    expenseId, description, amount, currency, paidBy, splitType, members, splitValues
   }) => {
     setError(null)
-
-    // 1. Update expense record
     const { data: updatedExpense, error: uErr } = await supabase
       .from('expenses')
       .update({ description, amount, currency, paid_by: paidBy, split_type: splitType })
-      .eq('id', expenseId)
-      .select()
-      .single()
+      .eq('id', expenseId).select().single()
     if (uErr) throw uErr
 
-    // 2. Delete all existing splits (Option B — full reset)
-    const { error: dErr } = await supabase
-      .from('expense_splits')
-      .delete()
-      .eq('expense_id', expenseId)
+    const { error: dErr } = await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
     if (dErr) throw dErr
 
-    // 3. Insert fresh splits
     const splitInserts = buildSplitInserts(expenseId, members, amount, splitType, splitValues, paidBy)
     const { error: sErr } = await supabase.from('expense_splits').insert(splitInserts)
     if (sErr) throw sErr
@@ -321,131 +250,77 @@ export function GroupProvider({ children }) {
   // ─── Splits ───────────────────────────────────────────────
 
   const fetchSplits = useCallback(async (expenseId) => {
-    const { data, error } = await supabase
-      .from('expense_splits')
-      .select('*')
-      .eq('expense_id', expenseId)
+    const { data, error } = await supabase.from('expense_splits').select('*').eq('expense_id', expenseId)
     if (!error) setSplits(prev => ({ ...prev, [expenseId]: data || [] }))
   }, [])
 
-  // ─── Settle Up (real members) ─────────────────────────────
+  // ─── Settle Up ────────────────────────────────────────────
 
-  const settleUp = useCallback(async ({
-    groupId, fromUser, toUser, amount, currency, note
-  }) => {
+  const settleUp = useCallback(async ({ groupId, fromUser, toUser, amount, currency, note }) => {
     setError(null)
     const { error: sErr } = await supabase
       .from('settlements')
-      .insert({
-        group_id:  groupId,
-        from_user: fromUser,
-        to_user:   toUser,
-        amount,
-        currency,
-        note: note || null
-      })
+      .insert({ group_id: groupId, from_user: fromUser, to_user: toUser, amount, currency, note: note || null })
     if (sErr) throw sErr
 
     const groupExpenses = expenses.filter(e => e.group_id === groupId)
     for (const expense of groupExpenses) {
       const expSplits = splits[expense.id] || []
-      if (expense.paid_by === toUser) {
-        const toSettle = expSplits.filter(s => s.user_id === fromUser && !s.is_settled)
-        for (const s of toSettle) {
-          await supabase.from('expense_splits')
-            .update({ is_settled: true, settled_at: new Date().toISOString() })
-            .eq('id', s.id)
-        }
-      }
-      if (expense.paid_by === fromUser) {
-        const toSettle = expSplits.filter(s => s.user_id === toUser && !s.is_settled)
-        for (const s of toSettle) {
-          await supabase.from('expense_splits')
-            .update({ is_settled: true, settled_at: new Date().toISOString() })
-            .eq('id', s.id)
-        }
+      const targets = expense.paid_by === toUser
+        ? expSplits.filter(s => s.user_id === fromUser && !s.is_settled)
+        : expense.paid_by === fromUser
+          ? expSplits.filter(s => s.user_id === toUser && !s.is_settled)
+          : []
+      for (const s of targets) {
+        await supabase.from('expense_splits')
+          .update({ is_settled: true, settled_at: new Date().toISOString() }).eq('id', s.id)
       }
     }
     for (const expense of groupExpenses) await fetchSplits(expense.id)
   }, [expenses, splits])
-
-  // ─── Settle Guest (mark all their unsettled splits as done) ──
 
   const settleGuest = useCallback(async (groupId, guestMemberId) => {
     setError(null)
     const groupExpenses = expenses.filter(e => e.group_id === groupId)
     for (const expense of groupExpenses) {
-      const expSplits = splits[expense.id] || []
-      const toSettle  = expSplits.filter(
-        s => s.guest_member_id === guestMemberId && !s.is_settled
-      )
+      const toSettle = (splits[expense.id] || []).filter(s => s.guest_member_id === guestMemberId && !s.is_settled)
       for (const s of toSettle) {
         await supabase.from('expense_splits')
-          .update({ is_settled: true, settled_at: new Date().toISOString() })
-          .eq('id', s.id)
+          .update({ is_settled: true, settled_at: new Date().toISOString() }).eq('id', s.id)
       }
     }
     for (const expense of groupExpenses) await fetchSplits(expense.id)
   }, [expenses, splits])
 
-  // ─── Balance Calculation (real + guest members) ───────────
+  // ─── Balance Calculation ──────────────────────────────────
 
   const calculateBalances = useCallback((groupId, currentUserId) => {
-    const realMembers  = groupMembers[groupId] || []
-    const guests       = guestMembers[groupId] || []
-    const balanceMap   = {}
+    const realMembers = groupMembers[groupId] || []
+    const guests      = guestMembers[groupId] || []
+    const balanceMap  = {}
 
-    // Real members
     for (const m of realMembers) {
-      if (m.id !== currentUserId) {
-        balanceMap[`real_${m.id}`] = {
-          userId:  m.id,
-          name:    m.full_name,
-          owesMe:  0,
-          iOwe:    0,
-          isGuest: false
-        }
-      }
+      if (m.id !== currentUserId)
+        balanceMap[`real_${m.id}`] = { userId: m.id, name: m.full_name, owesMe: 0, iOwe: 0, isGuest: false }
     }
+    for (const g of guests)
+      balanceMap[`guest_${g.id}`] = { userId: g.id, name: `${g.name} (Guest)`, owesMe: 0, iOwe: 0, isGuest: true }
 
-    // Guest members (they can only owe, never be owed)
-    for (const g of guests) {
-      balanceMap[`guest_${g.id}`] = {
-        userId:  g.id,
-        name:    `${g.name} (Guest)`,
-        owesMe:  0,
-        iOwe:    0,
-        isGuest: true
-      }
-    }
-
-    const groupExpenses = expenses.filter(e => e.group_id === groupId)
-
-    for (const expense of groupExpenses) {
+    for (const expense of expenses.filter(e => e.group_id === groupId)) {
       const expSplits = splits[expense.id] || []
-
       if (expense.paid_by === currentUserId) {
-        // Current user paid — others owe them
         for (const split of expSplits) {
           if (!split.is_settled) {
-            if (split.guest_member_id) {
-              // Guest owes current user
-              const key = `guest_${split.guest_member_id}`
-              if (balanceMap[key]) balanceMap[key].owesMe += split.amount
-            } else if (split.user_id && split.user_id !== currentUserId) {
-              // Real member owes current user
-              const key = `real_${split.user_id}`
-              if (balanceMap[key]) balanceMap[key].owesMe += split.amount
-            }
+            if (split.guest_member_id && balanceMap[`guest_${split.guest_member_id}`])
+              balanceMap[`guest_${split.guest_member_id}`].owesMe += split.amount
+            else if (split.user_id && split.user_id !== currentUserId && balanceMap[`real_${split.user_id}`])
+              balanceMap[`real_${split.user_id}`].owesMe += split.amount
           }
         }
       } else {
-        // Someone else paid — current user might owe them
         const mySplit = expSplits.find(s => s.user_id === currentUserId)
-        if (mySplit && !mySplit.is_settled) {
-          const key = `real_${expense.paid_by}`
-          if (balanceMap[key]) balanceMap[key].iOwe += mySplit.amount
-        }
+        if (mySplit && !mySplit.is_settled && balanceMap[`real_${expense.paid_by}`])
+          balanceMap[`real_${expense.paid_by}`].iOwe += mySplit.amount
       }
     }
 
@@ -460,7 +335,7 @@ export function GroupProvider({ children }) {
       allMembers,
       fetchGroups, createGroup, deleteGroup,
       fetchMembers, addMember, removeMember,
-      fetchGuestMembers, addGuestMember, removeGuestMember,
+      fetchGuestMembers, fetchRecentGuests, addGuestMember, removeGuestMember,
       fetchExpenses, addExpense, editExpense, deleteExpense,
       fetchSplits, settleUp, settleGuest, calculateBalances,
       setError
